@@ -14,6 +14,7 @@
 #include <mitsuba/render/records.h>
 #include <mitsuba/render/scene.h>
 #include "../../ext/drjit/include/drjit/autodiff.h"
+#include <iostream>
 
 #if !defined(_WIN32)
 #  include <signal.h>
@@ -121,33 +122,43 @@ public:
     void put_parameter_impl(const std::string &name, void *ptr, uint32_t flags,
                             const std::type_info &type) {
         std::cout << "found param " << name << "which is differentiable "
-                  << *((Color<dr::DiffArray<dr::CUDAArray<float>>, 3> *) (ptr))
+                  << *((Color<dr::DiffArray<dr::LLVMArray<float>>,3> *) (ptr))
                   << std::endl;
         if (change_color)
         {
             std::cout << "changing color"<<std::endl;
-            (*((Color<dr::DiffArray<dr::CUDAArray<float>>, 3> *) (ptr)))[0] =
-                0.3;
-            (*((Color<dr::DiffArray<dr::CUDAArray<float>>, 3> *) (ptr)))[1] =
-                0.1;
-            (*((Color<dr::DiffArray<dr::CUDAArray<float>>, 3> *) (ptr)))[2] =
-                0.9;
-            (*((dr::DiffArray<dr::CUDAArray<float>> *) (ptr)))
-                .set_grad_enabled_(true); // enable gradient on this parameter
+            (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[0] =
+                0.8;
+            (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[1] =
+            0.3;
+            (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[2] =
+            0.8;
+            (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).set_grad_enabled_(true); // enable gradient on this parameter
         }
+        auto ptrtest = (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)));
+
+        std::cout
+            << "test : "
+                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptrtest)))[0]
+                         .grad_enabled_()
+            << std::endl;
         std::cout
             << "grad enabled,grad,index : "
-                  << (*((dr::DiffArray<dr::CUDAArray<float>> *) (ptr)))
+                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
                          .grad_enabled_()
-                  << (*((dr::DiffArray<dr::CUDAArray<float>> *) (ptr)))
-                         .grad_()
-                  << (*((dr::DiffArray<dr::CUDAArray<float>> *) (ptr)))
+                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
+                         .grad_()[1]
+                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
+                         .index_ad()
+                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
                          .index_ad()
             << std::endl;
+        std::cout<<"size,depth : "<<(*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).Size<<", "<<(*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).Depth<<std::endl;
     }
     void put_object(const std::string &name, Object *obj, uint32_t flags) {
         std::cout << "found param " << name << std::endl;
         BRDFTraversalCallback cb(change_color);
+        std::cout<<"done with param"<<std::endl;
         (obj)->traverse(&cb);
     }
 };
@@ -211,10 +222,16 @@ void render(Object *scene_, size_t sensor_i, fs::path filename) {
         }
     }*/
 
+    std::cout << "\n\n--------traversing with change=true----------" << std::endl;
+
+    CustomTraversalCallback cb(true);
+    scene->traverse(&cb);
+
+
     std::cout << "\n\n--------traversing with change=false----------" << std::endl;
 
-    CustomTraversalCallback cb(false);
-    scene->traverse(&cb);
+    CustomTraversalCallback cb2(true);
+    scene->traverse(&cb2);
 
     //render reference image
     integrator->render(scene, (uint32_t) sensor_i,
@@ -222,24 +239,15 @@ void render(Object *scene_, size_t sensor_i, fs::path filename) {
                        0 /* spp */,
                        false /* develop */,
                        true /* evaluate */);
-    //save reference bitmap
-    Bitmap referenceBitmap = film->bitmap();
-    std::cout << "reference bitmap sizes : " << (int) referenceBitmap.size()[0]
-              << ", " << (int) referenceBitmap.size()[1] << std::endl;
 
-    std::cout << "\n\n ------------------calling ad_traverse()------------"
-              << std::endl;
-    ad_traverse(ADMode::Backward, 0);
-    
-
-    std::cout << "\n\n--------traversing after render----------" << std::endl;
-    //change left wall color
-    CustomTraversalCallback cbis(true);
-    scene->traverse(&cbis);
 
     // render different image
-    integrator->render(scene, (uint32_t) sensor_i, 0 /* seed */, 0 /* spp */,
-                       false /* develop */, true /* evaluate */);
+    //integrator->render(scene, (uint32_t) sensor_i, 0 /* seed */, 0 /* spp */,
+    //                   false /* develop */, true /* evaluate */);
+
+
+/*
+
     // save new bitmap
     Bitmap newBitmap = *(film->bitmap());
 
@@ -257,8 +265,8 @@ void render(Object *scene_, size_t sensor_i, fs::path filename) {
                        (referenceBitmap
                             ->uint8_data())[i * newBitmap->size()[1] + j])
                 << std::endl;*/
-        }
-    }
+//        }
+//    }
 
 
 
@@ -562,3 +570,4 @@ int main(int argc, char *argv[]) {
 
     return error_msg.empty() ? 0 : -1;
 }
+
