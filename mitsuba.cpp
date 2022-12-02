@@ -133,32 +133,27 @@ public:
             0.3;
             (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[2] =
             0.8;
-            (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).set_grad_enabled_(true); // enable gradient on this parameter
+            //(*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[0].set_grad_enabled_(true);
+            (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[1].set_grad_enabled_(true);
+            (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)))[2].set_grad_enabled_(true);
         }
         auto ptrtest = (*((Color<dr::DiffArray<dr::LLVMArray<float>>, 3> *) (ptr)));
 
         std::cout
-            << "test : "
-                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptrtest)))[0]
-                         .grad_enabled_()
+            << "on r,g,b : value, grad, grad_enabled_ : "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[0])<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[0]).grad_()<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[0]).grad_enabled_()<<"\n"
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[1])<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[1]).grad_()<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[1]).grad_enabled_()<<"\n"
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[2])<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[2]).grad_()<<", "
+                  << (dr::DiffArray<dr::LLVMArray<float>>)(ptrtest[2]).grad_enabled_()<<"\n"
             << std::endl;
-        std::cout
-            << "grad enabled,grad,index : "
-                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
-                         .grad_enabled_()
-                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
-                         .grad_()[1]
-                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
-                         .index_ad()
-                  << (*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr)))
-                         .index_ad()
-            << std::endl;
-        std::cout<<"size,depth : "<<(*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).Size<<", "<<(*((dr::DiffArray<dr::LLVMArray<float>> *) (ptr))).Depth<<std::endl;
     }
     void put_object(const std::string &name, Object *obj, uint32_t flags) {
-        std::cout << "found param " << name << std::endl;
         BRDFTraversalCallback cb(change_color);
-        std::cout<<"done with param"<<std::endl;
         (obj)->traverse(&cb);
     }
 };
@@ -228,17 +223,19 @@ void render(Object *scene_, size_t sensor_i, fs::path filename) {
     scene->traverse(&cb);
 
 
-    std::cout << "\n\n--------traversing with change=false----------" << std::endl;
-
-    CustomTraversalCallback cb2(true);
-    scene->traverse(&cb2);
+    std::cout << "\n\n--------retrieving the tensor----------" << std::endl;
 
     //render reference image
-    integrator->render(scene, (uint32_t) sensor_i,
+    mitsuba::DynamicBuffer<Float> rendered = integrator->render(scene, (uint32_t) sensor_i,
                        0 /* seed */,
                        0 /* spp */,
-                       false /* develop */,
+                       true /* develop */,
                        true /* evaluate */);
+
+    std::cout<<"size of rendered tensor : "<<rendered.size()<<std::endl;
+    std::cout<<"first element of rendered tensor : "<<rendered[0]<<std::endl;
+    std::cout<<"grad of first element of rendered tensor : "<<rendered[0].grad_()<<std::endl;
+    std::cout<<"grad_enabled() of first element of rendered tensor : "<<rendered[0].grad_enabled_()<<std::endl;
 
 
     // render different image
